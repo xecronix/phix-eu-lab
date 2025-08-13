@@ -1,0 +1,71 @@
+[[xecronix|Ronald Weidner]] \\ \\
+
+<<TOC>> 
+= EuDrop Library Management System for Euphoria
+
+== Who is this solution for?
+The target beneficiary of this solution is the software developer.
+
+== Primary Concern
+When developing code that depends on another project, such as a lib, there is not an easy or consistent way to manage/install such dependencies.  Large scale scale applications will be more difficult to manage without such a mechanism.
+
+== Secondary Concerns
+==== The number of human resources that can solve this problem is limited.
+This project will likely be developed by a very small group of people.  The number of people working on the project could be as little as one.
+
+==== The number of human resources that can maintain the solution to this problem is limited.
+Once implemented, there could be as little as one person maintaining the project.
+
+==== There should not be a financial burden on developers that want to use EuDrop
+It is not my intention of to cause any financial burden on the Euphoria developers.  This includes the cost of hosting and distributing open source code.
+
+==== There should not be a financial burden on the community related to EuDrop
+OpenEuphoria team is currently absorbing the cost of hosting the wiki.  It is not my intention to cause any additional cost to the community. 
+
+==== There should be little risk of lost work.
+The Euphoria community is made up of a small but dedicated band of engineers.  Resources are limited.  Consider the loss to the community if the RDS website would suddenly shutdown.  There could potentially be a million lines of Euphoria code tucked away in zip files suddenly unavailable.  Assuming that I'm not the first person to think of that maybe there's already a contingency plan is place.  I don't know.  But it seems like a large unnecessary risk in my opinion.  
+
+==== The solution should be as easy as possible to implement by individual developers.
+If it isn't easy to do, developers are not likely to do it.  A complete and easy to use tool chain is needed for this to work.
+
+== What the solution is not.
+General application deployment is usually handled in a platform specific way and is well established.  Examples of platform specific solutions include Windows Installer, RPM, and Debian packages.  This solution is not meant to replace those solutions.
+
+== Solution Architecture
+The solution will be heavily based on the Ruby Gem concept.  As much as possible this is an attempt of a clone of that architecture except for where it conflicts with the primary or secondary concerns mentioned above. The adoption of Gem style directory structure seems to make sense as it's already proven and well vetted.  Additionally, the concept has been duplicated in at least 2 other scripting languages including PHP and Python.
+
+Software developers would be expected to follow a standard convention for their project's directory structures.  The reasons for a standard convention include:
+* An easier to implement "Gem Like" strategy.
+* Consumers (aka fellow Euphoria programmers) of a new EuDrop will have an easier time understanding how the project is laid out because the pattern would be repeated for many projects.
+* Less effort to create tools to facilitate the solution.
+
+To make this easy for developers to do, a library named eudrop.e will be created.  This lib is intended to be used as the engine that drives a command line program called eudrop.ex.  Most of the core "Conventions" are implemented as tasks defined in the lib.  For example, the lib provides high level functions such as, "eudrop:new", "eudrop:install", "eudrop:push" among others.  Once command line tools are proven, the next step would be to use the lib to create project plugins for popular IDEs like WEE for example.
+
+TODO: Create a complete list of eudrop.e functions based on [[Ruby Gem Documentation | http://guides.rubygems.org/rubygems-basics/]]
+
+Due to resource limitations, it's important to leverage as much off the shelf tools as possible.  In particular, the following tools would be expected to be available on a system that is using eudrop
+
+* git - installing a eudrop starts by cloning a repository. 
+* make - This tool will be used to run tests and install copy libs to where they will be used by the developer. 
+* euphoria - used for a variety of tasks including creating directory structures, creating boiler plate files, publishing project information, and receiving update notifications.
+
+Finally, a new web service should be created that will allow the creation of wiki pages via an API.  Ideally, a public/private key strategy would be used to identify and authenticate the a user wishing to use the API but other strategies also exist including https, scp, or OAuth based authentication.  At minimum the API and service should provide the following functionality.
+
+* Create a wiki page for the project.
+* Maintain a searchable list of categorized projects.
+* Validate that a git repository exists for the project.
+
+The API should expect the developer to provide at least the following information:
+* The name of the project
+* A description 
+* A category or categories the project falls under
+* A valid git URL for the project
+
+The web service can create the wiki page by grabbing the README.md from the project;
+{{{
+git archive --remote=ssh://host/pathto/repo.git HEAD README.md
+}}}
+
+Some additional considerations to wiki project pages should be considered at some point.  In particular a list of users that can modify a project page.  By default the author of the page should be allowed to modify.  The author can then appoint proxies using either e-mail address or user names.
+
+eudrop.ex will take advantage of the already existing RSS feed available on the OpenEuphoria wiki for update notifications.  

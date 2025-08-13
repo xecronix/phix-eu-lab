@@ -1,0 +1,88 @@
+[[xecronix|Ronald Weidner]] \\ \\
+==Downlaod
+Download [[The Mighty Eagle|https://github.com/xecronix/MightyEagle]] on Github.
+
+== Description:
+The Mighty Eagle Templating Solution (METS) is capable of replacing a properly tagged text document with external data.  This solution has the added advantage of being easily extended via the use of callbacks.  Using callbacks a programmer can easily model recursive data and perform on the fly data translations.  Some use cases include translating data from one format to another, generic templated documents, mail templates, Euphoria Pre-processor jobs, and other similar tasks.  The program is particularly well suited for translating relational data to hierarchical visualizations.
+
+== Building:
+This library is intended to run as an interpreted Euphoria program.  
+
+== Running the demo
+
+The project has a demo called mightyeagle.ex in the demo/ directory.  Additionally, there are many tests to be found in the tests/ directory.  The tests should be familiar to those using eutest unit testing.  The demo translates 2 sequences to build a nice report.
+
+<eucode>
+sequence customers_tbl = {
+	{"xecronix", "nospam_xecronix@sogetthis.com", "407-555-1212", "123 Main Street"},
+	{"jsmith", "greatday88@sogetthis.com", "407-555-1212", "999 Other Street"}
+}
+sequence orders_tbl = {
+	{"xecronix", "Laser Pointer", 3, 1.25},
+	{"jsmith", "Spiral Notebook", 12, 6.87},
+	{"jsmith", "Computer Mouse", 1, 9.86},
+	{"jsmith", "Mouse Pad", 1, 3.49}
+}
+</eucode>
+
+{{https://raw.githubusercontent.com/xecronix/MightyEagle/master/demo/demo_sales_report.png}}
+
+And here is the template used to build the report.  Notice this template takes advantage of nested callbacks. This is a powerful ~MightyEagle feature.
+<eucode>
+sequence template = """
+<html>
+<style>
+	td {border:1px solid}
+	table {border:1px solid}
+	.center {text-align:center}
+	.right_align {text-align:right}
+</style>
+<body>
+<table>
+{@customer_cb
+  <tr>
+    <th colspan='3'>
+      {=name :}<br />
+      {=address :}<br />
+      {=phone :}<br />
+      {=email :}<br />
+    </th>
+  </tr>
+  <tr>
+      <th>Product</th>
+      <th>Quantity</th>
+      <th>Cost</th>
+    </th>
+  </tr>
+{@order_cb
+  <tr>
+    <td class='center'>{=prod :}</td>
+    <td class='right_align'>{=qty :}</td>
+    <td class='right_align'>{=cost :}</td>
+  </tr>
+:}:}
+</table>
+</body>
+</html>
+"""
+</eucode>
+
+== Installing:
+To use the library simply copy the project folder named mightyeagle/ to somewhere in your Euphoria include path.  Then include it like:
+
+<eucode>
+include mightyeagle/mightyeagle.e
+</eucode>
+
+== Bundling with your application:
+
+To bundle with your application you have at least 2 choices:
+
+# provide download instructions for your user
+# place the mightyeagle/ directory in a location known to your software.  (like an include path)
+
+== Bugs
+Found a bug?  Sorry to hear that.  Please help me by [[reporting bugs or making feature requests|https://github.com/xecronix/MightyEagle/issues]] on the Github project page.  
+
+Thanks.
+

@@ -1,0 +1,50 @@
+function parse_int(sequence s, integer base=10)
+    sequence digits = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+    if base < 2 or base > length(digits) then
+        return {0, 0}
+    end if
+
+    integer i = 1, n = length(s)
+    integer sign = 1
+    integer any = 0
+    integer ch, d
+    atom val = 0
+
+    -- optional sign
+    if i <= n and (s[i] = '+' or s[i] = '-') then
+        if s[i] = '-' then sign = -1 end if
+        i += 1
+    end if
+
+    while i <= n do
+        ch = s[i]
+
+        -- ignore underscores as digit separators
+        if ch = '_' then
+            i += 1
+            continue
+        end if
+
+        -- normalize lowercase to uppercase
+        if ch >= 'a' and ch <= 'z' then
+            ch -= 32
+        end if
+
+        d = find(ch, digits) - 1
+        if d < 0 or d >= base then
+            any = 0
+            exit  -- stop at first non-digit for this base
+        end if
+
+        any = 1
+        -- Horner's method: val = val * base + d
+        val = val * base + d
+        i += 1
+    end while
+
+    if not any then
+        return {0, 0}
+    end if
+
+    return {1, sign * val}
+end function

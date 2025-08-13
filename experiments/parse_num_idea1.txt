@@ -1,0 +1,253 @@
+I think these are the functions we're working on this week.  Probably a few others too.
+-- all of these return {0, 0} for failure. {1, atom} for success.  allow allow for signs.
+parse_whole_num - alias for parse parse_radix_num(s, 10)
+parse_basex_num - alias for parse parse_radix_num(s, base)
+parse_radix_num - renamed function from parse_int
+parse_num       - parses un-decorated fractional numbers
+parse_decorated_num - parses decorated numbers parse_decorated_num (s, base, decorations)
+
+We're going to make helper functions so that this works.
+function parse_decorated_num (s, base, decorations)
+	if not is_num(s,base, decorations) then
+		return {0,0}
+	end if 
+
+	sequence normal_num = normalize_num(s, base, decorations)
+	-- this is probably better than what's un-commented since
+	-- we validated the number a few lines ago. 
+	-- we could probably just do this: (Better use of CPU)
+	-- if base = 10 
+	--     return parse_num(normal_num[2])
+	-- end if
+	-- return return parse_radix_num(normal_num[2], base)
+	--
+	-- but instead I wrote this pattern.  IDK.
+	if not normal_num[1] = 1 then 
+		return {0,0}
+	end if 
+
+	if base = 10 then
+		return parse_num(normal_num[2])
+	end function
+	return parse_radix_num(normal_num[2], base)
+end function 
+
+-- see how easy that was.  It's probably 95% done too.  There's a slight possibility it's actually done.  
+
+Here are some of the helper functions.
+-- removes decorations from number
+function normalize_num (sequence s, integer base, integer decoration_mask)
+    if not is_num then
+		return {0,s}
+	end if
+
+	loop char by char and remove anything that isn't a sign or a digit. 
+	replace comma with a dot.
+	return {1, s}
+end function
+
+-- is this a valid number
+function is_num (sequence s, base=10, integer decoration_mask=0)
+    if not base = 10 then
+        return is_basex_num(s, base, decoration_mask) -- decoration mask might have something for 0x or # and others
+    end if 
+    
+    if not decoration_mask = 0 then
+        return is_decorated_number (s, decoration_mask)
+    end if
+    
+    -- validate number s
+    return 1
+end function
+
+function is_basex_num(s, base, decoration_mask)
+    return is_radix_num(s, base, decoration_mask)
+end function
+
+function is_radix_num(s, base, decoration_mask)
+    return 1
+end function
+
+Next goals for this week. 
+- Rory want to record him self playing a game.  He also want to add commentary live.
+- git clone phix : today
+- git clone euphoria : today
+- build chm for euphoria - No extra effort.  I don't want to improve the docs in anyway.  I don't want to add/remove anything not absolutely needed to build a chm from the already existing html docs. : Start today
+- build chm for phix using Pete's instructions.  Add some keywords. By Friday, make a pull request.
+- Implement the parse_num functions cross dialect Euphoria/Phix
+- Identify gaps in Pascal that the parse_num functions might fill. 
+- Get discord (I think that's what it's called?  A slack-like tool)
+- Pick a company and become a reseller of hosting.
+- Build RDP for bzlite in FreePascal.  It's just a simple port.  Some function calls stubbed out for resolving identifiers.  The call function will also need to be stubbed out to return an empty bzVariable (if that's what I called it)
+
+missing knowledge
+- How to build a chm
+- Where to find the tools needed to build a chm
+- How to do a pull request.  
+- Git workflow in general for multi-dev projects.
+- How to record a screen share with both game audio and microphone audio
+
+Hosting reseller must have:
+- PHP
+- MySQL
+- MySQL Admin
+- CPanel
+- Free SSL
+- E-mail
+- Subdomains
+
+Future project in planning stage: 
+CHM with an SDE Assistant.
+- Investigate the feasibility of using Phix for this project.  If Phix is feasible, prefer it for non-technical reasons.
+- Will need a database. Investigate the feasibility of SQLite before building a custom KeyVal store.  KeyVal store is a viable option.
+- While I hope Phix is an option for this project I'll also consider C# and Lazarus and Delphi and Java.  Admittedly, C# is probably the best tool for this job on a windows box.  But as soon as I start exploring GTK# for cross platform reasons, Lazarus, Delphi and, Java start looking much more attractive.
+- Success looks like this:
+CHM with a chatbot UI.  I should be able to ask the SDE questions that are derivable from understanding the text of in the chm.  Like the example I provided yesterday.
+
+"I have a sequence x that has the value "2".  How do add x + x and get 4 and not 22?"  
+
+the response should be something like:
+"Great question.  The trick is that you'll need to first convert your sequence to a number. Phix has a function called to_number() for that purpose. Here is the documentation for to_number."
+
+
+The reason I picked this question/answer is because the question didn't use any keywords found in the description of the function.  That's the gold standard.  Along the way we might have some light weight wins using keywords and meta data... but, gold is when the assistant understands the chm. (and of course the user)
+
+Vega Response
+=============
+
+Love the Monday sketch. Here’s a tighten-up that keeps your intent but removes wiggle-room and forum bikeshedding.
+
+# Parse API (names + return contract)
+
+All return `{ok, value}` where `ok ∈ {0,1}` and `value` is an **atom**. For integer grammars, `value` is **integer-valued** (i.e., `floor(value)=value`).
+
+* `parse_whole_num(s)` → alias of `parse_radix_num(s, 10)`
+* `parse_basex_num(s, base)` → alias of `parse_radix_num(s, base)`
+* `parse_radix_num(s, base)` → parses **unsigned/signed** whole number in `base ∈ [2..36]`; **no decimals**.
+* `parse_num(s)` → parses **undecorated** base-10 number: optional sign, digits, optional `.` fraction, optional `e[+-]d`.
+* `parse_decorated_num(s, base, decorations)` → parses **decorated** numbers; supports grouping, currency, `%`, NBSP, locale comma, prefixes, etc. Returns `{ok, value}` after normalization.
+
+Keep the names describing the **input grammar**, not the storage type. That kills the “but it returns atom!” debate.
+
+# Helpers (clear contracts)
+
+* `is_num(s, base=10, decoration_mask=0)` → `{0|1}`
+
+  * if `base!=10`: delegate to `is_radix_num(s, base, decoration_mask)`
+  * if `decoration_mask!=0`: delegate to `is_decorated_number(s, decoration_mask)`
+  * else validate undecorated base-10 (`parse_num` grammar)
+* `normalize_num(s, base, decoration_mask)` → `{ok, normalized}`
+
+  * Strips allowed decorations, normalizes whitespace (incl. **NBSP 160**), removes grouping, unifies decimal **to `.`**, resolves prefixes/suffixes (e.g., `0x`, `%`).
+  * Output **must** be acceptable input to `parse_num` (base=10) or `parse_radix_num` (base≠10).
+* `is_radix_num(s, base, decoration_mask)` → `{0|1}`
+
+  * Accept optional `+/-`, digits `[0-9A-Za-z]` limited by base, optional `0x/0b` etc **only if** mask allows. No decimal point for base≠10.
+
+Tiny fix in your sketch:
+
+```euphoria
+if not normal_num[1] = 1 then -- currently parses as "if (not normal_num[1]) = 1"
+-- should be:
+if normal_num[1] != 1 then
+```
+
+# Decoration bitmask (suggested)
+
+```
+DEC_GROUPING         = 1   -- commas, thin spaces, NBSP as thousand sep
+DEC_DECIMAL_COMMA    = 2   -- comma as decimal separator (convert to '.')
+DEC_CURRENCY_PREFIX  = 4   -- $, €, etc. (strip)
+DEC_PERCENT_SUFFIX   = 8   -- trailing %, apply /100
+DEC_PREFIX_HEX       = 16  -- allow 0x
+DEC_PREFIX_BIN       = 32  -- allow 0b
+DEC_WHITESPACE_ANY   = 64  -- allow tabs/NBSP inside
+```
+
+You don’t need all of these day one; start with `GROUPING | DECIMAL_COMMA | CURRENCY_PREFIX | PERCENT_SUFFIX | WHITESPACE_ANY`.
+
+# `parse_decorated_num` flow (lean + fast)
+
+```euphoria
+function parse_decorated_num(sequence s, integer base, integer deco)
+    if not is_num(s, base, deco) then return {0,0} end if
+    sequence nn = normalize_num(s, base, deco)
+    if nn[1]!=1 then return {0,0} end if
+    if base=10 then
+        return parse_num(nn[2])
+    else
+        return parse_radix_num(nn[2], base)
+    end if
+end function
+```
+
+(You don’t need to re-validate after `normalize_num`; you already did it.)
+
+# Edge cases to lock down
+
+* Leading/trailing spaces incl. **NBSP(160)**.
+* Signs with spacing: `"+ 1 234"` only valid if `DEC_WHITESPACE_ANY`.
+* Grouping rules: either **strict** (3-3-3) or **lenient**; pick and document.
+* `%` with commas: `"12,5%"` under `DEC_DECIMAL_COMMA` → `0.125`.
+* Currency: `"€ 1 234,56"` (yes, NBSP/thin spaces) → `1234.56`.
+* Base≠10: **no decimals**; allow `0x`, `0b` only if mask says so.
+
+# Minimal tests (golden cases)
+
+```
+-- base 10, undecorated
+parse_num("42")                => {1,42}
+parse_num("-3.5e+1")           => {1,-35}
+
+-- grouping/locale
+parse_decorated_num("1,234.56",10,DEC_GROUPING)             => {1,1234.56}
+parse_decorated_num("1 234,56",10,DEC_GROUPING|DEC_DECIMAL_COMMA|DEC_WHITESPACE_ANY) => {1,1234.56}
+parse_decorated_num("$1,234",10,DEC_GROUPING|DEC_CURRENCY_PREFIX) => {1,1234}
+parse_decorated_num("12,5%",10,DEC_DECIMAL_COMMA|DEC_PERCENT_SUFFIX) => {1,0.125}
+
+-- base x
+parse_radix_num("FF",16)       => {1,255}
+parse_basex_num("1011",2)      => {1,11}
+parse_decorated_num("0xFF",16,DEC_PREFIX_HEX) => {1,255}
+```
+
+# Week plan → crisp checkboxes
+
+**Today**
+
+* [ ] `git clone` Phix and OE
+* [ ] Build OE CHM from HTML (scaffold only)
+* [ ] Start `index.extra.txt` (convert/cast/coerce/value clash)
+
+**Tue–Wed**
+
+* [ ] Phix: patch index emit → `.hhk` entries from `index.extra.txt`
+* [ ] Rebuild CHM; screenshots (Index: `value` shows both; Search: `convert*` → `to_number`)
+* [ ] Open PR #1
+
+**Thu–Fri**
+
+* [ ] Implement `parse_num`, `parse_radix_num`, `parse_decorated_num` (cross-dialect)
+* [ ] Golden tests above running on both Euphoria and Phix
+* [ ] Pascal gap list (where these help)
+
+**Any evening (45–60 min)**
+
+* [ ] OBS set up for Rory (Game Capture + Desktop Audio + Mic; record to MKV with separate tracks)
+* [ ] Discord install and mic test
+* [ ] Hosting reseller shortlist (meets PHP/MySQL/cPanel/SSL/Email/Subdomains)
+
+# “Missing knowledge” quick hits
+
+* **Build a CHM (Windows):** Install *Microsoft HTML Help Workshop* → produce `.hhp/.hhc/.hhk` → run `hhc.exe your.hhp`.
+* **Where to get tools:** HTML Help Workshop is still downloadable from Microsoft; uChmViewer is handy for dev testing.
+* **PR flow (solo branch):** fork → `git clone` → `git checkout -b docs/index-keywords` → commit(s) → push → open PR with before/after screenshots.
+* **OBS basics:** Source=**Game Capture** (or **Window Capture**) + **Audio** (Desktop + Mic). In Settings→Output, enable “**Record to MKV**,” Audio Tracks 1–2 separate. Hotkeys for Start/Stop.
+
+# CHM+SDE (gold standard)
+
+Your example (“`x` has `"2"`, how to get `4` not `22`”) is a perfect eval: no keyword overlap with `to_number`, but **Ask Vega** should still land **to_number** and cite it. We’ll seed synonyms now and add embeddings later.
+
+If you want, I’ll draft **`index.extra.txt` v1 (≈25 entries)** next so you can paste it into the Phix repo and check off Today #3.
+
+

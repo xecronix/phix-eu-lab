@@ -1,0 +1,259 @@
+=DIY is_number Function
+[[xecronix|Ronald Weidner]] \\ \\
+I debated about writing this wiki page.  It seems like such a simple thing to determine if a string is a number or not.  But a lot can go into that question.  Euphoria has a function called to_number that you can use to detect whether a string (sequence) is a number or not.  For example:  [[https://openeuphoria.org/docs/std_convert.html#_2293_to_number]]
+
+<eucode>
+include std/convert.e
+sequence some_str = "-0.5"
+if atom(to_number(some_str, -1)) then
+    atom num = to_number(some_str)
+end if
+</eucode>
+
+If you don't like reinventing the wheel, just use the Euphoria code above to check strings for numbers.  But, if you're more like me and want to take a stab at writing a function that can specialize in that functionality... read on.
+
+The to_number function takes 2 arguments.  The first is a sequence.  The second modifies the output of the function.  Sometimes the output is an atom, sometimes a 1-element sequence, and sometimes a 2-element sequence.  But honestly, all I really want sometimes is just a true or false... Is this thing a number or not?  That's what is_number tries to do.  My use case for checking numbers is usually a base-10, signed float or integer.  In the future I might write a function named is_number_exp(sequence s, sequence flags) that does more than this function does.  It might handle money, percentages, commas, etc.  Not because to_number can't already do that, but rather because I like doing those kinds of things.  
+
+<eucode>
+include std/convert.e
+include std/sequence.e
+
+-- Returns 1 if the string is a valid, undecorated base-10 number (e.g., "42", "-3.14", ".5")
+-- Returns 0 otherwise.
+-- 
+-- Notes:
+-- - No commas, exponents, or hex/octal prefixes allowed.
+-- - Leading + or - is allowed.
+-- - A leading or trailing decimal point is valid (e.g., ".5", "5.").
+-- - Empty strings, multiple dots, or non-digit characters cause failure.
+function is_number(sequence maybe)
+    integer found_dot = 0
+    integer i = 1
+    integer c = 0
+    integer retval = 0
+    
+    -- because empty string is not a number
+    if length(maybe) = 0 then
+        return 0
+    end if
+    
+    -- we'll skip the sign if it has one
+    if find(maybe[i], "+-") then
+        i += 1
+    end if
+    
+    -- We might have just moved the index.  Make sure there is at 
+    -- least 1 more character to consider.
+    if i > length(maybe) then
+        return 0
+    end if
+    
+    -- if nothing follows a leading . maybe isn't a number
+    if equal(maybe[i], '.') and (i + 1 > length(maybe)) then
+        return 0
+    end if
+    
+    -- At this point i is either 1 or 2.  It's 1 if there is no sign. It's
+    -- 2 if there is a sign.  maybe[i] might be a . but it might not be.
+    -- If it is a dot at least one more char is required in a valid string.  
+    -- Let's say we have this string.  "+.." .  In that
+    -- case i is 2 when we enter the loop.  We'll set retval to 1 and 
+    -- consume the first . .  The first . is valid. Let's start consuming 
+    -- the rest of the string.  Anything other than a digit is invalid.  
+    --
+    -- I believe this loop should be able to accurately determine whether or
+    -- not a string is a base-10 undecorated number.  Edge cases are already 
+    -- dealt with. Looks good on my monitor.
+    while i < (length(maybe) + 1) do
+        c = maybe[i]
+        if equal(c, '.') and found_dot then
+            return 0
+        end if
+
+        if equal(c, '.') then 
+            found_dot = 1
+        elsif not find(c, "0123456789") then
+            return 0
+        end if
+        retval = 1
+        i+=1
+    end while
+    return retval
+end function
+
+-- Sequence return will be at least and no more than 
+-- len characters long.  if length(s) < len the
+-- difference will be right padded with spaces.
+-- If length(s) > len then the return value will be a 
+-- truncated version of s.
+function fixed_len(sequence s, integer len)
+    if length(s) < len then
+        return s & repeat(' ', len - length(s))
+    end if
+    return s[1..len]
+end function
+
+sequence false_tests = {" ", ".", "-", "+", "..", ".-", ".+",
+"-.", "+.", "0..", ".0.", "--", "++", "1 4", "A", "-a", "+a",
+"-.a", "+.a", ".a", "1a", ".1a ", "7+", "7-", "7Foo", "7*"
+}
+
+sequence true_tests = { "0", "0.", ".0", "-.0", "+.0", "0.0",
+"-0.0", "+0.0", "123", "123.", ".123", "-.123", "+.123","123.123",
+"-123.123", "+123.123", "00032", "-00032", "+00032", "00032.000", "-00032.050", 
+"+00032.0", "00000.0000", "-00000.0000"
+}
+
+integer i = 1
+puts (1, "Testing for FALSE (0): \n")
+while i < length(false_tests) + 1 do
+    sequence t = false_tests[i]
+    sequence msg = fixed_len(sprintf("Testing is_number function with input [%s] ",{t} ),55)
+    printf(1, msg & "result: [%d]\n" , {is_number(t)})
+    i += 1
+end while
+
+i = 1
+puts (1, "Testing for TRUE (1): \n")
+while i < length(true_tests) + 1 do
+    sequence t = true_tests[i]
+    sequence msg = fixed_len(sprintf("Testing is_number function with input [%s] ",{t} ), 55)
+    printf(1, msg & "result: [%d]\n" , {is_number(t)})
+    i += 1
+end while
+
+puts(1,"\n\nWhat would Euphoria do??  atom d = atom(to_number(test_str, -1)) \n\n")
+
+i = 1
+puts (1, "Testing for FALSE (0): \n")
+while i < length(false_tests) + 1 do
+    sequence t = false_tests[i]
+    sequence msg = fixed_len(sprintf("What would Euphoria do with input [%s] ",{t} ),55)
+    printf(1, msg & "result: [%d]\n" , {atom(to_number(t, -1))})
+    i += 1
+end while
+
+i = 1
+puts (1, "Testing for TRUE (1): \n")
+while i < length(true_tests) + 1 do
+    sequence t = true_tests[i]
+    sequence msg = fixed_len(sprintf("What would Euphoria do with input [%s] ",{t} ),55)
+    printf(1, msg & "result: [%d]\n" , {atom(to_number(t, -1))})
+    i += 1
+end while
+
+</eucode>
+
+{{{
+$ eui is_number.ex
+Testing for FALSE (0):
+Testing is_number function with input [ ]              result: [0]
+Testing is_number function with input [.]              result: [0]
+Testing is_number function with input [-]              result: [0]
+Testing is_number function with input [+]              result: [0]
+Testing is_number function with input [..]             result: [0]
+Testing is_number function with input [.-]             result: [0]
+Testing is_number function with input [.+]             result: [0]
+Testing is_number function with input [-.]             result: [0]
+Testing is_number function with input [+.]             result: [0]
+Testing is_number function with input [0..]            result: [0]
+Testing is_number function with input [.0.]            result: [0]
+Testing is_number function with input [--]             result: [0]
+Testing is_number function with input [++]             result: [0]
+Testing is_number function with input [1 4]            result: [0]
+Testing is_number function with input [A]              result: [0]
+Testing is_number function with input [-a]             result: [0]
+Testing is_number function with input [+a]             result: [0]
+Testing is_number function with input [-.a]            result: [0]
+Testing is_number function with input [+.a]            result: [0]
+Testing is_number function with input [.a]             result: [0]
+Testing is_number function with input [1a]             result: [0]
+Testing is_number function with input [.1a ]           result: [0]
+Testing is_number function with input [7+]             result: [0]
+Testing is_number function with input [7-]             result: [0]
+Testing is_number function with input [7Foo]           result: [0]
+Testing is_number function with input [7*]             result: [0]
+Testing for TRUE (1):
+Testing is_number function with input [0]              result: [1]
+Testing is_number function with input [0.]             result: [1]
+Testing is_number function with input [.0]             result: [1]
+Testing is_number function with input [-.0]            result: [1]
+Testing is_number function with input [+.0]            result: [1]
+Testing is_number function with input [0.0]            result: [1]
+Testing is_number function with input [-0.0]           result: [1]
+Testing is_number function with input [+0.0]           result: [1]
+Testing is_number function with input [123]            result: [1]
+Testing is_number function with input [123.]           result: [1]
+Testing is_number function with input [.123]           result: [1]
+Testing is_number function with input [-.123]          result: [1]
+Testing is_number function with input [+.123]          result: [1]
+Testing is_number function with input [123.123]        result: [1]
+Testing is_number function with input [-123.123]       result: [1]
+Testing is_number function with input [+123.123]       result: [1]
+Testing is_number function with input [00032]          result: [1]
+Testing is_number function with input [-00032]         result: [1]
+Testing is_number function with input [+00032]         result: [1]
+Testing is_number function with input [00032.000]      result: [1]
+Testing is_number function with input [-00032.050]     result: [1]
+Testing is_number function with input [+00032.0]       result: [1]
+Testing is_number function with input [00000.0000]     result: [1]
+Testing is_number function with input [-00000.0000]    result: [1]
+
+
+What would Euphoria do??  atom d = atom(to_number(test_str, -1))
+
+Testing for FALSE (0):
+What would Euphoria do with input [ ]                  result: [0]
+What would Euphoria do with input [.]                  result: [0]
+What would Euphoria do with input [-]                  result: [0]
+What would Euphoria do with input [+]                  result: [0]
+What would Euphoria do with input [..]                 result: [0]
+What would Euphoria do with input [.-]                 result: [0]
+What would Euphoria do with input [.+]                 result: [0]
+What would Euphoria do with input [-.]                 result: [0]
+What would Euphoria do with input [+.]                 result: [0]
+What would Euphoria do with input [0..]                result: [0]
+What would Euphoria do with input [.0.]                result: [0]
+What would Euphoria do with input [--]                 result: [0]
+What would Euphoria do with input [++]                 result: [0]
+What would Euphoria do with input [1 4]                result: [0]
+What would Euphoria do with input [A]                  result: [0]
+What would Euphoria do with input [-a]                 result: [0]
+What would Euphoria do with input [+a]                 result: [0]
+What would Euphoria do with input [-.a]                result: [0]
+What would Euphoria do with input [+.a]                result: [0]
+What would Euphoria do with input [.a]                 result: [0]
+What would Euphoria do with input [1a]                 result: [0]
+What would Euphoria do with input [.1a ]               result: [0]
+What would Euphoria do with input [7+]                 result: [1]
+What would Euphoria do with input [7-]                 result: [1]
+What would Euphoria do with input [7Foo]               result: [0]
+What would Euphoria do with input [7*]                 result: [0]
+Testing for TRUE (1):
+What would Euphoria do with input [0]                  result: [1]
+What would Euphoria do with input [0.]                 result: [1]
+What would Euphoria do with input [.0]                 result: [1]
+What would Euphoria do with input [-.0]                result: [1]
+What would Euphoria do with input [+.0]                result: [1]
+What would Euphoria do with input [0.0]                result: [1]
+What would Euphoria do with input [-0.0]               result: [1]
+What would Euphoria do with input [+0.0]               result: [1]
+What would Euphoria do with input [123]                result: [1]
+What would Euphoria do with input [123.]               result: [1]
+What would Euphoria do with input [.123]               result: [1]
+What would Euphoria do with input [-.123]              result: [1]
+What would Euphoria do with input [+.123]              result: [1]
+What would Euphoria do with input [123.123]            result: [1]
+What would Euphoria do with input [-123.123]           result: [1]
+What would Euphoria do with input [+123.123]           result: [1]
+What would Euphoria do with input [00032]              result: [1]
+What would Euphoria do with input [-00032]             result: [1]
+What would Euphoria do with input [+00032]             result: [1]
+What would Euphoria do with input [00032.000]          result: [1]
+What would Euphoria do with input [-00032.050]         result: [1]
+What would Euphoria do with input [+00032.0]           result: [1]
+What would Euphoria do with input [00000.0000]         result: [1]
+What would Euphoria do with input [-00000.0000]        result: [1]
+
+
+}}}

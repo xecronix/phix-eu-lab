@@ -1,0 +1,26 @@
+[[xecronix|Ronald Weidner]] \\ \\
+==Download on Github
+[[EuAnyRepo | https://github.com/xecronix/euanyrepo]]
+
+I've created a new project on Github currently called EuAnyRepo.  The intention is to have a tool that can use many different Package Management tools to install things that are needed for your software to run.  The tool is being written in OpenEuphoria and should be general enough for many applications.  I expect the tool to reach alpha in 7 days.  
+
+==Alpha Criteria
+||Status||Feature||
+|TEST| Can use apt to find and download missing packages |
+|DONE| Can use yum to find and download missing packages |
+|DONE| Can use dnf to find and download missing packages |
+|TEST| On systems with multiple Package Managers will try all until installation or failure |
+|NEW| Can read config file for package manager related prefs |
+|NEW| Can read dependencies file for a list of required software. |
+
+==Beta Criteria
+* 100% test coverage for all Alpha Criteria
+* 100% documentation for all Alpha Criteria
+
+==Release
+* Helper scripts for developers to make dependency files
+* Helper scripts for users to manage config files.
+
+In addition to a new tool, I've also started a new Test Suite.  I know there is already a good one written in Euphoria for Euphoirians but, I've wanted to write one for a while so I guess I'm doing it now.  The tool is being worked on as a lib for this project.  But it will have a new home as soon as [[EuAnyRepo]] reaches Beta.
+
+At this point there are a few tests passing and some documentation on testing.

@@ -1,0 +1,203 @@
+-- File: number_parsers.e  (rev2)
+
+constant DECIMAL_DOT            = 1,
+         DECIMAL_COMMA          = 2,     -- mutually exclusive with DECIMAL_DOT
+         ALLOW_THOUSANDS_COMMA  = 4,
+         ALLOW_THOUSANDS_DOT    = 8,
+         ALLOW_THOUSANDS_SPACE  = 16,
+         ALLOW_THOUSANDS_USCORE = 32,
+         ALLOW_LEADING_PLUS     = 64,
+         ALLOW_LEADING_MINUS    = 128,
+         STRICT_GROUPING        = 256
+
+constant NBSP = {160}   -- non-breaking space
+
+-- ---- helpers --------------------------------------------------------
+
+function to_atom_safe(sequence s)
+    object tmp = to_number(s, {})         -- may be {} or an atom
+    if atom(tmp) then
+        return {1, tmp}
+    end if
+    return {0, 0}
+end function
+
+function is_digit_in_base(integer ch, integer base)
+    integer v
+    if ch>='0' and ch<='9' then
+        v = ch-'0'
+    elsif ch>='A' and ch<='Z' then
+        v = 10 + (ch-'A')
+    elsif ch>='a' and ch<='z' then
+        v = 10 + (ch-'a')
+    else
+        return -1
+    end if
+    return iff(v<base ? v : -1)
+end function
+
+function enforce_grouping(sequence s, integer sep, integer dec_pos)
+    integer start = 1
+    if length(s)>=1 and (s[1]='+' or s[1]='-') then start = 2 end if
+    integer endi = iff(dec_pos=0 ? length(s) : dec_pos-1)
+    integer i = endi, group = 0
+    while i>=start do
+        if s[i]=sep then
+            if group!=3 then return 0 end if
+            group = 0
+        else
+            if s[i]<'0' or s[i]>'9' then return 0 end if
+            group += 1
+        end if
+        i -= 1
+    end while
+    return 1   -- leading group may be 1..3 digits
+end function
+
+-- ---- 1) parse_int: undecorated base-x (2..36) ----------------------
+
+function parse_int(sequence s, integer base=10)
+    s = trim(s)
+    if base<2 or base>36 or length(s)=0 then return {0,0} end if
+
+    integer i = 1, neg = 0
+    if s[i]='+' then i += 1
+    elsif s[i]='-' then neg = 1; i += 1 end if
+    if i>length(s) then return {0,0} end if
+
+    atom acc = 0
+    integer seen = 0
+    for k=i to length(s) do
+        integer dv = is_digit_in_base(s[k], base)
+        if dv=-1 then return {0,0} end if   -- undecorated only
+        acc = acc*base + dv
+        seen = 1
+    end for
+    if not seen then return {0,0} end if
+    if neg then acc = -acc end if
+    return {1, acc}
+end function
+
+-- ---- 2) parse_num: undecorated base-10, optional decimal comma -----
+
+function parse_num(sequence s, integer decimal_comma=0)
+    s = trim(s)
+    if length(s)=0 then return {0,0} end if
+
+    integer i = 1, neg = 0
+    if s[i]='+' then i+=1
+    elsif s[i]='-' then neg=1; i+=1 end if
+    if i>length(s) then return {0,0} end if
+
+    integer n_dots = 0, n_commas = 0
+    for k=i to length(s) do
+        integer c = s[k]
+        if c='.' then n_dots += 1
+        elsif c=',' then n_commas += 1
+        elsif c<'0' or c>'9' then return {0,0} end if
+    end for
+
+    if decimal_comma then
+        if n_dots or n_commas>1 then return {0,0} end if
+        if n_commas=1 then s = substitute(s, ",", ".") end if
+    else
+        if n_commas or n_dots>1 then return {0,0} end if
+        -- dot already ok
+    end if
+
+    -- strip sign for to_number, then reapply
+    sequence core = s
+    if s[1]='+' or s[1]='-' then core = s[2..$] end if
+
+    sequence norm = core
+    return iff(neg ? to_atom_safe("-"&norm) : to_atom_safe(norm))
+end function
+
+-- ---- 3) parse_decorated_num: policy-driven human formats -----------
+
+function parse_decorated_num(sequence s, integer opts)
+    s = trim(s)
+    if length(s)=0 then return {0,0} end if
+
+    integer neg = 0
+    if length(s)>=1 and (s[1]='+' or s[1]='-') then
+        if s[1]='+' and not (opts and ALLOW_LEADING_PLUS) then return {0,0} end if
+        if s[1]='-' and not (opts and ALLOW_LEADING_MINUS) then return {0,0} end if
+        neg = (s[1]='-')
+        s = s[2..$]
+        s = trim(s)
+        if length(s)=0 then return {0,0} end if
+    end if
+
+    integer want_dot   = (opts and DECIMAL_DOT)!=0
+    integer want_comma = (opts and DECIMAL_COMMA)!=0
+    if want_dot and want_comma then return {0,0} end if
+
+    -- remove space-like thousands if allowed
+    if opts and ALLOW_THOUSANDS_SPACE then
+        s = substitute_all(s, " ", "")
+        s = substitute_all(s, NBSP, "")
+    end if
+    if opts and ALLOW_THOUSANDS_USCORE then
+        s = substitute_all(s, "_", "")
+    end if
+
+    -- count remaining punctuation
+    integer n_dots = 0, n_commas = 0
+    for k=1 to length(s) do
+        if s[k]='.' then n_dots += 1
+        elsif s[k]=',' then n_commas += 1
+        elsif s[k]<'0' or s[k]>'9' then return {0,0} end if
+    end for
+
+    -- decide decimal mark
+    integer use_comma = 0
+    if want_dot then
+        use_comma = 0
+        if n_commas>0 and not (opts and ALLOW_THOUSANDS_COMMA) then return {0,0} end if
+    elsif want_comma then
+        use_comma = 1
+        if n_dots>0 and not (opts and ALLOW_THOUSANDS_DOT) then return {0,0} end if
+    else
+        if n_dots>0 and n_commas>0 then return {0,0} end if
+        use_comma = (n_commas>0)
+    end if
+
+    integer dec_pos = 0
+    if use_comma then
+        if n_commas>1 then return {0,0} end if
+        dec_pos = find(',', s)
+        if (opts and STRICT_GROUPING) and n_dots>0 then
+            if not enforce_grouping(s, '.', dec_pos) then return {0,0} end if
+        end if
+        s = substitute_all(s, ".", "")          -- drop thousands dots
+        if dec_pos then s = substitute(s, ",", ".") end if
+    else
+        if n_dots>1 then return {0,0} end if
+        dec_pos = find('.', s)
+        if (opts and STRICT_GROUPING) and n_commas>0 then
+            if not enforce_grouping(s, ',', dec_pos) then return {0,0} end if
+        end if
+        s = substitute_all(s, ",", "")          -- drop thousands commas
+        -- dot stays as decimal if present
+    end if
+
+    -- final sanity: digits[.digits]
+    integer seen_digit = 0
+    integer seen_dot   = 0
+    for i=1 to length(s) do
+        integer c = s[i]
+        if c='.' then
+            if seen_dot then return {0,0} end if
+            seen_dot = 1
+        elsif c>='0' and c<='9' then
+            seen_digit = 1
+        else
+            return {0,0}
+        end if
+    end for
+    if not seen_digit then return {0,0} end if
+
+    sequence norm = iff(neg ? "-"&s : s)
+    return to_atom_safe(norm)
+end function

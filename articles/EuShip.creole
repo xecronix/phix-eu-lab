@@ -1,0 +1,99 @@
+[[xecronix|Ronald Weidner]] \\ \\
+=EuShip
+
+Building a deploy-able package should not be difficult.  However, because Euphoria is both cross platform and potentially compiled, there is a need for a Package Tool that addresses these concerns.  EuShip is that tool.  
+
+==Who is this tool for?
+This tool is for developers that want to create installers for their program that does not rely on 3rd party package managers, such as RPM or DEB.  The users of this tool do not want to rely on any preexisting tool to be present on the target machine other than what would have been installed by default during a clean OS install.  The users of this tool do not wish to restrict the end user to installing software in any particular location on the target machine.  Developers using this tool probably also use the [[EuDrop Project]]  Library Management Tool during their development process.
+
+TODO: OpenEuphoria does not support https out of the box. This means that some thrid party tool might be needed.  First choice is libcurl.  However, licensing may prevent static linking for some projects.  If statically linking becomes not an option, then unzip features may need to be available on the target OS.  
+
+==How it works
+When you are developing a project designed for EuShip, you will be expected to have at least the following directories/files.
+
+{{{
+&#9492;&#9472;&#9472; MyProject/
+    &#9500;&#9472;&#9472; dist/
+    &#9500;&#9472;&#9472; installersrc/
+    &#9492;&#9472;&#9472; euship.xml
+}}}
+
+EuShip comes with tools that make building a complete EuShip project from scratch super easy.  In particular a default EuShip project resembles the following directory structure.
+
+{{{
+&#9492;&#9472;&#9472; MyProject/
+    &#9500;&#9472;&#9472; bin/
+    &#9500;&#9472;&#9472; build/
+    &#9500;&#9472;&#9472; demo/
+    &#9500;&#9472;&#9472; dist/
+    &#9500;&#9472;&#9472; docs/
+    &#9500;&#9472;&#9472; include/
+    &#9500;&#9472;&#9472; installerbin/
+    &#9500;&#9472;&#9472; installersrc/
+    &#9500;&#9472;&#9472; resources/
+    &#9500;&#9472;&#9472; src/
+    &#9500;&#9472;&#9472; test/
+    &#9500;&#9472;&#9472; euship.xml
+    &#9492;&#9472;&#9472; Makefile
+}}}
+
+When this recommended directory structure is used and the project is also using ~EuDrop for library management,  EuShip can easily automate most of your package building needs.
+
+Metadata related to the project is stored in the euship.xml file.  This data includes information such as supported platforms, version information, description, and other such information.  Most importantly, euship.xml includes a URL to an online resource hosting the project.  Github is recommended for this purpose but that is not required.  For example ~https://github.com/xecronix/myproject/blob/master/dist/
+
+When you create a package using EuShip it will automatically create zip packages of your program and a file named eushipper.ex in the installersrc/ directory.
+
+{{{
+&#9500;&#9472;&#9472; bin/
+&#9500;&#9472;&#9472; build/
+&#9500;&#9472;&#9472; demo/
+&#9500;&#9472;&#9472; dist/
+&#9474;Â Â  &#9500;&#9472;&#9472; linMyProject.zip
+&#9474;Â Â  &#9500;&#9472;&#9472; macMyProject.zip
+&#9474;Â Â  &#9492;&#9472;&#9472; winMyProject.zip
+&#9500;&#9472;&#9472; docs/
+&#9500;&#9472;&#9472; include/
+&#9500;&#9472;&#9472; installerbin/
+&#9474;Â Â  &#9500;&#9472;&#9472; linshipper
+&#9474;Â Â  &#9500;&#9472;&#9472; macshipper
+&#9474;Â Â  &#9492;&#9472;&#9472; winshipper.exe
+&#9500;&#9472;&#9472; installersrc/
+&#9474;Â Â  &#9500;&#9472;&#9472; eushipper.ex
+&#9474;Â Â  &#9492;&#9472;&#9472; Makefile
+&#9500;&#9472;&#9472; resources/
+&#9500;&#9472;&#9472; src/
+&#9500;&#9472;&#9472; test/
+&#9500;&#9472;&#9472; euship.xml
+&#9492;&#9472;&#9472; Makefile
+}}}
+
+You're are free to examine the eushipper.ex program and make any needed changes or add required features for your installer.  When you are satisfied that the installer will perform the tasks needed to install your program EuShip will run the Makefile to create/cross compile your installer.  Essentially what the eushipper.ex program accomplishes by default are the following tasks.
+
+TODO: Investigate [[zenity | https://help.gnome.org/users/zenity/stable/]] for possible use as GUI
+
+* Download a zip version of your software found at the URL resource identified in the euship.xml metadata (for a specific platform)
+* Prompt the user for an install directory and provide reasonable defaults.
+* Unzip
+
+EuShip will use make to cross compile the eushipper.ex script to an executable program.  One installer will be generated for each platform you program supports as defined in the euship.xml.  The compiled executable will be found in the installerbin/ directory.
+
+{{{
+&#9500;&#9472;&#9472; installerbin/
+&#9474;Â Â  &#9500;&#9472;&#9472; linshipper
+&#9474;Â Â  &#9500;&#9472;&#9472; macshipper
+&#9474;Â Â  &#9492;&#9472;&#9472; winshipper.exe
+
+}}}
+
+Simply distribute the shipper program to your users to have your program automatically installed.  And don't forget to create a new OpenEuphoria wiki page to announce you new program.
+
+TODO: Find out if an API can be created for the wiki so that this process can be automated.
+
+**Why zip format?**
+The resulting installer binaries are statically linked against libzip.  That way there is no reliance any particular software being installed on the target system.
+
+==Guidelines
+
+What follows is a set of recommended guidelines to make working with EuShip as easy, breezy and most importantly as automated as possible.
+
+TODO: Write best practices.

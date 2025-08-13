@@ -1,0 +1,299 @@
+= Recursive Decent Parser (example)  
+[[xecronix|Ronald Weidner]]
+
+Consider the following expression:
+{{{
+( 2 + 3 ) * ( 4 + 5 )
+}}}
+
+What you'll notice is there is a pattern.  If we consider each "thing" in the expression a token, we can think of this as a sequence of tokens.  And every other token is either a number or a symbol.  Or, said another way, every other token is either a term or an operation.
+
+{{{
+(, 2, +, 3, ), *, (, 4, +, 5, )
+}}}
+
+Of course, as with most things in life, there are exceptions.
+{{{
+1 + - 2 + 4
+}}}
+
+In the above expression we have a - 2. Which means we have a term "1" followed by an op "+" followed by another op "-". See the comments in the code. We handle this in the function opPrefix.
+
+Just the parser bit is about 100 lines of code.  Comments add a little bulk.  
+
+**Update:** 
+* I just noticed I forgot to include unary -/+. So, I fixed it.  
+* Noticed tabs and spaces both used for indentation.  Fixed it.  tab = space * 4
+* Fixed "pyramid" code by reducing block-level nesting.
+* Added tests
+* Added a few more comments
+* Showing some test output
+* Made the is_number function better
+
+
+<eucode>
+
+include std/convert.e
+include std/sequence.e
+-- ---    This parser is VERY unforgiving by way of expression format. ---
+-- Most notably the spaces between terms, operations, and parentheses are mandatory as written.
+-- I didn't write a robust tokenizer for this.    It's just an expression parser as simple as 
+-- I know how to make it.    
+
+-- simulated pointer. Because for me, it kept things simple.
+sequence expression = {} -- pointer will be pointing here.
+integer ptr = 1
+
+-- But even if my fake pointer is "simple," a little safety doesn't hurt.
+function advance_ptr() 
+    if ptr < length(expression) then
+        ptr += 1
+        return 1 
+    end if
+    return 0
+end function
+
+-- In this parser, the lowest operation is addition and subtraction.    
+-- So, this is the entry point to parsing expressions.
+function opAddSub()
+    atom left = opMultDiv() -- Order of operations states multiply and divide come before add and subtract.
+    sequence op = expression[ptr]
+    sequence ops = "+-"
+    printf(1, "Looking for %s in %s\n", {op[1], ops})
+    while find(op[1], ops) do 
+        if not advance_ptr() then
+            exit -- if we couldn't advance the pointer, bail.
+        end if
+        atom right = opMultDiv()    -- this moves the pointer to the next op.
+        if equal(op, "+") then
+            left = left + right
+        else
+            left = left - right
+        end if
+        op = expression[ptr] -- now we're ready to read the next op
+    end while
+    return left
+end function
+
+-- This is very similar to opAddSub.    The difference is this one is 
+-- doing different operations and has a divide by 0 check.
+function opMultDiv()
+    atom left = opPrefix() -- Order of operations states exponents come before multiply and divide.
+    sequence op = expression[ptr]
+    sequence ops = "*/"
+    printf(1, "Looking for %s in %s\n", {op[1], ops})
+    while find(op[1], ops) do 
+        if not advance_ptr() then
+            exit
+        end if
+        
+        atom right = opPrefix()    -- this moves the pointer to the next op.
+        if equal(op, "*") then
+            left = left * right
+        elsif right = 0 then
+            puts(1, "Error, cannot divide by 0.\n")
+            abort(1)
+        else
+            left = left / right
+        end if
+        op = expression[ptr] -- now we're ready to read the next op
+    end while
+    return left
+end function
+
+-- This is how unary signs are handled.    Essentially, what's happening here is that there is a sign 
+-- where a number should be.    So, we'll handle it.
+function opPrefix()
+    integer sign = 1
+    sequence tok = expression[ptr]
+    while equal(tok, "+") or equal(tok, "-") do
+        if equal(tok, "-") then sign = -sign end if --    in case someone does something like ----4 
+        if not advance_ptr() then exit end if
+        tok = expression[ptr]
+    end while
+    return sign * opPower()
+end function
+
+-- This looks the same as the other two, but it isn't.    Exponents are evaluated
+-- Right to Left.    The other operations are evaluated from Left to Right.    
+-- This tripped me up a little.    Notice this is the first time 
+-- We're actually doing recursion. The right side of the binary expression comes
+-- from calling itself.  I'll point it out with a comment.    
+function opPower()
+    atom left = parseTerm()
+    sequence op = expression[ptr]
+    sequence ops = "^"
+    printf(1, "Looking for %s in %s\n", {op[1], ops})
+    while find(op[1], ops) do 
+        if not advance_ptr() then
+            exit
+        end if
+        
+        atom right = opPower()    -- this is calling itself and will cause 4 ^ 2 ^ 2 to be evaluated like 4 ^ ( 2 ^ 2 )
+        left = power(left, right)
+        op = expression[ptr] -- now we're ready to read the next op
+    end while
+    return left
+end function
+
+-- NOTE -- This function moves the pointer.    Be aware of that, please.
+-- The objective of this function is to return a single atom value.
+-- We'll deal with parentheses here.    If I were going to add variables or
+-- function calls to this parser, this is where I would do it.
+function parseTerm()
+    sequence token = expression[ptr]
+    if is_number(token) then
+        atom success = advance_ptr() -- <<-- This is why the pointer advances in a seemingly sneaky way.    Sorry.
+        return to_number(token)
+    elsif equal(token, "(") then
+        atom success = advance_ptr() -- consume the (    <<-- pointer moves 
+        if not success then
+            printf(1, "No term after open ( ", {token})
+            abort(0)
+        end if
+        atom retval = opAddSub()  -- <<-- This is recursion
+        if not equal(expression[ptr], ")") then
+            printf(1, "expected ) but got %s", {expression[ptr]})     
+            abort(0)        
+        end if
+        success = advance_ptr() -- consume the )    <<-- pointer moves 
+        return retval
+    else
+        printf(1, "expected number or ( but got %s", {token})
+        abort(0)
+    end if
+end function
+
+-- Returns 1 if the string is a valid, undecorated base-10 number (e.g., "42", "-3.14", ".5")
+-- Returns 0 otherwise.
+-- 
+-- Notes:
+-- - No commas, exponents, or hex/octal prefixes allowed.
+-- - Leading + or - is allowed.
+-- - A leading or trailing decimal point is valid (e.g., ".5", "5.").
+-- - Empty strings, multiple dots, or non-digit characters cause failure.
+function is_number(sequence maybe)
+    integer found_dot = 0
+    integer i = 1
+    integer c = 0
+    integer retval = 0
+    
+    -- because empty string is not a number
+    if length(maybe) = 0 then
+        return 0
+    end if
+    
+    -- we'll skip the sign if it has one
+    if find(maybe[i], "+-") then
+        i += 1
+    end if
+    
+    -- We might have just moved the index.  Make sure there is at 
+    -- least 1 more character to consider.
+    if i > length(maybe) then
+        return 0
+    end if
+    
+    -- if nothing follows a leading . maybe isn't a number
+    if equal(maybe[i], '.') and (i + 1 > length(maybe)) then
+        return 0
+    end if
+    
+    -- At this point i is either 1 or 2.  It's 1 if there is no sign. It's
+    -- 2 if there is a sign.  maybe[i] might be a . but it might not be.
+    -- If it is a dot at least one more char is required in a valid string.  
+    -- Let's say we have this string.  "+.." .  In that
+    -- case i is 2 when we enter the loop.  we'll set retval to 1 and 
+    -- consume the first . .  At this point the first . is valid. Now 
+    -- we'll start consuming the rest of the string.  Anything other than 
+    -- a digit is invalid.  
+    --
+    -- I believe this loop should be able to accurately determine whether or
+    -- not a string is a base-10 undecorated number.  Edge cases are already 
+    -- dealt with. Looks good from my desk. 
+    while i < (length(maybe) + 1) do
+        c = maybe[i]
+        if equal(c, '.') and found_dot then
+            return 0
+        end if
+
+        if equal(c, '.') then 
+            found_dot = 1
+        elsif not find(c, "0123456789") then
+            return 0
+        end if
+        retval = 1
+        i+=1
+    end while
+    return retval
+end function
+
+function main()
+    sequence tests = {
+        {"2 + 3 * ( 4 + 5 )", "29.000000"},
+        {"2 + 3 * 4", "14.000000"},
+        {"2 * 3 + 4 * 6", "30.000000"},
+        {"2 + 2 ^ 3", "10.000000"},
+        {"4 ^ 3", "64.000000"},
+        {"( 2 + 2 ) ^ 3", "64.000000"},
+        {"1 + 2 + 4" , "7.000000"},
+        {"1 + 2 - 4" , "-1.000000"},
+        {"4 ^ 2 ^ 2", "256.000000"},
+        {"2 * 3 ^ 2", "18.000000"},
+        {"( 2 + 3 ) * ( 4 + 5 )", "45.000000"},
+        {"( 3 + 4 * 2 / ( 1 - 5 ) ^ 2 ^ 3 ) * - 1", "-3.000122"},
+        {"( 3 + 4 * 2 / ( 1 - 5 ) ^ 2 ^ 3 )", "3.000122"},
+        {"- 2 ^ 2", "-4.000000"},
+        {"- 3 + ( 4 * 2 ) ^ ( 1 + 1 ) / 8 - - 1", "6.000000"},
+        {"12 * .5", "6.000000"}
+    }
+    
+    sequence results = {}
+    
+    integer i = 1
+    while i < (length(tests) + 1) do
+        --The simplest tokenizer I know of.
+        expression = split(tests[i][1], " ")
+        ptr = 1
+        sequence result = sprintf("%f", {opAddSub()})
+        sequence pass_fail = "PASS"
+        if not equal(tests[i][2], result) then
+            pass_fail = "FAIL"
+        end if
+        results = append(results, sprintf("%s: Test: [%s] Expected: [%s] Got: [%s]\n", {pass_fail, tests[i][1], tests[i][2], result}))
+        i += 1
+    end while
+    
+    i = 1
+    while i < length(results) + 1 do
+        puts(1, results[i])
+        i += 1
+    end while
+    
+    return 0
+end function
+printf (1, "main exited with %f\n", {main()})
+
+</eucode>
+
+{{{
+PASS: Test: [2 + 3 * ( 4 + 5 )] Expected: [29.000000] Got: [29.000000]
+PASS: Test: [2 + 3 * 4] Expected: [14.000000] Got: [14.000000]
+PASS: Test: [2 * 3 + 4 * 6] Expected: [30.000000] Got: [30.000000]
+PASS: Test: [2 + 2 ^ 3] Expected: [10.000000] Got: [10.000000]
+PASS: Test: [4 ^ 3] Expected: [64.000000] Got: [64.000000]
+PASS: Test: [( 2 + 2 ) ^ 3] Expected: [64.000000] Got: [64.000000]
+PASS: Test: [1 + 2 + 4] Expected: [7.000000] Got: [7.000000]
+PASS: Test: [1 + 2 - 4] Expected: [-1.000000] Got: [-1.000000]
+PASS: Test: [4 ^ 2 ^ 2] Expected: [256.000000] Got: [256.000000]
+PASS: Test: [2 * 3 ^ 2] Expected: [18.000000] Got: [18.000000]
+PASS: Test: [( 2 + 3 ) * ( 4 + 5 )] Expected: [45.000000] Got: [45.000000]
+PASS: Test: [( 3 + 4 * 2 / ( 1 - 5 ) ^ 2 ^ 3 ) * - 1] Expected: [-3.000122] Got: [-3.000122]
+PASS: Test: [( 3 + 4 * 2 / ( 1 - 5 ) ^ 2 ^ 3 )] Expected: [3.000122] Got: [3.000122]
+PASS: Test: [- 2 ^ 2] Expected: [-4.000000] Got: [-4.000000]
+PASS: Test: [- 3 + ( 4 * 2 ) ^ ( 1 + 1 ) / 8 - - 1] Expected: [6.000000] Got: [6.000000]
+PASS: Test: [12 * .5] Expected: [6.000000] Got: [6.000000]
+
+}}}
+
+[[xecronix|Ronald Weidner]]

@@ -1,0 +1,246 @@
+== Why?
+Of course, this is a great question.  When you pass a variable by reference you can change the value of the variable inside of the function.  In our implementation today we're simulating a C struct.  We'll then pass the struct into some functions and if all goes well, we'll be able to observe the changes elsewhere in our code.
+
+Speed is often another reason for this style of programming.  Euphoria passes variables to functions by value.  This means that the data on the inside of your function (or procedure) is a copy of the data on the outside.  Copying data is computationally expensive.
+
+OK.  So why not then?  Well, there is always a trade off right?  In this case safety is one of those trade offs.  All programs have a finite amount of memory it can use.  The thing is, it's considered more difficult to manage that memory consumption in your programs yourself.  Additionally, it's easy to write data to the wrong place if you're not paying close enough attention.  This can often lead to a program crash, a system crash, or worse!  What's worse?  A bug that doesn't show up right away and takes days to figure out what went wrong.  Euphoria takes care of these concerns for you.  The approach demonstrated today will serve as nice, fairly safe, introduction to memory management.  It's unlikely that you crash your system with this approach or even "leak" your memory resources.  But you could still write some pretty nasty bugs. 
+
+== How?
+There are actually at least 3 ways.
+# We could use a global variable to stash our data.  The variable would be a sequence and we would just have to keep track of the index of the data we want to store in there.
+# We could use "Pseudo Memory".  The standard library provides this via [[std/eumem.e | http://openeuphoria.org/docs/std_eumem.html#_5541_pseudomemory]]
+# Or we can use the new experimental structs that is destined to come with Euphoria.
+
+Today we're going to cover option 2 and the other options will be covered at a later time.
+== OOP Style
+Let's write a "Class" of sorts.  This "Class" will not have all of the features you might expect from a OOP language like Java.  Most notably, we're not implementing polymorhism or inheritance. This "Class" is somewhat stripped down to just providing some level of data encapsulation and type checking.  We're going to take advantage of Euphoria's scoping to simulate private and public methods and variables.  We'll use accessor methods to get and set data.  So using our "Pseudo" Class will feel a lot like using a simple OOP object
+
+== Example
+<eucode>
+namespace dude 
+include std/eumem.e 
+</eucode>
+
+First let's make a namespace for this Class we'll call Dude.  And we need to include the std/eumem.e lib for the memory functions we need.
+
+<eucode>
+-- 
+-- this is our dude structure (let's hide the implementation details)
+-- 
+enum 
+    __TYPE__, -- must be first value in enum
+    DUDE_AGE, 
+    DUDE_FNAME, 
+    DUDE_LNAME, 
+    __MYSIZE__ -- must be last value in enum
+</eucode>
+
+Here we're going to use an enum so that we can keep track of where our data is.  We also want to know how big our data is and what kind of Class we're building.  Notice we didn't make this enum public.  This means that it is only available to code in the file it's defined. 
+
+<eucode>
+--
+-- ID pattern is SOME_NAME_THAT_MAKES_SENSE DOLLAR_SYMBOL SOME_RANDOM_CHARS
+--    
+constant
+    DUDE_ID = "DUDE$TUJYRHGDESFWA#@$%^"
+    
+constant NULL = 0 
+</eucode>
+
+I want to create some sort of unique id to identify this class.  "DUDE" is something I can recognize if I need to for debugging purposes.  The dollar $ symbol signifies that the significant part of this id is done.  Then we'll add some random characters... just in case.  If we decide to add inheritance some time in the future, this feature will likely come in handy.
+
+
+<eucode>
+-- Awesome Euphoria Feature!  Let's define what a dude looks like.
+public type Dude (atom ptr)
+    if eumem:valid(ptr, __MYSIZE__) then
+        if equal(eumem:ram_space[ptr][__TYPE__], DUDE_ID) then
+            return 1
+        end if
+    end if
+    return 0
+end type
+</eucode>
+
+At this point if you happen to know C, what we've done using the enum and type is simulate a C struct and typedef in Euphoria.  This type block says that a Dude is an atom or NULL.  And we'll confirm this is a Dude using that crazy DUDE_ID we came up with a few moments ago.  But what is the **eumem:ram_space[ptr][__TYPE__]** thing going on there?  That is our simulated heap memory space.  It's clever really.  It looks like a sequence where the first index is ptr and we're stashing that crazy DUDE_ID value there.  Of course we haven't actually put anything on the heap yet.  But this is a test we can use to make sure ptr is pointing to a Dude.  Can you guess how you might access the Dude's AGE?
+
+<eucode>
+-- Magic here is we can add remove "Properties" from our data struct
+-- Without needing remember to update this.
+public constant 
+    SIZEOF_DUDE = __MYSIZE__ 
+</eucode>    
+
+Now we've finshing setting this struct thing up.  If we had made everything public we could stop here and just use what we've built just like a C struct.  But, that's not entirely what this tutorial is all about.  Have you figured out why __MYSIZE__ needs to be the last enum?
+
+<eucode>
+-- 
+-- create a new dude object 
+-- 
+public function new( sequence fname, sequence lname, atom age ) 
+     
+    return eumem:malloc( {DUDE_ID, age, fname, lname, SIZEOF_DUDE} ) 
+   
+end function 
+</eucode>
+
+Since we made the enum private, the end user has no good way to access the values in our struct.  That's where this pseudo constructor comes in.  The user of this Dude class will provide the name and age of the dude and we'll set it up on the heap.  We'll make sure to add the type information and give the user a pointer to the memory index of the stuff we just stashed on the heap.  Type checking is a nice way to avoid a lot of errors.  We've been keeping track of size of dude in the enum because have to tell malloc how much of the heap this Dude will use. 
+
+What is a pointer?  When I first started learning about pointers, I liked to think of them as indexes to array's.  Using that analogy, you can think of the heap as a great big row of memory blocks.  A pointer is then an index to the first block of this memory that you care about.
+
+Let's pause for a moment for one more analogy.  Say you're at a train station and you put your stuff in one of the those lockers you can rent.  Then you walk away with the key.  The key is like a pointer.  Compared to the stuff you put in the locker, the key is probably pretty small.  Also if you lose the key, you'll have no way to get your stuff back.  If you some how end up with the wrong key, who knows what stuff you'll end up with.  Imagine someone's surprise if they manage to find their way into that locker and all their stuff is missing and/or different.
+
+In the context of memory management and pointers when you call malloc you'll get that key in return.  If you lose the key, that's called a memory leak.  If you somehow get your keys mixed up then peek into someone else's locker, I don't think that has a name.  As long as you don't touch the stuff.  But if you do touch the stuff in the wrong locker that is called a memory stomp.  And sooner or later, someone is probably going to get cranky about it.
+
+Whether you like to think of a pointer as an index or as a unique key, a pointer points to someplace in memory where you can put your data.  If you want it back, you can't lose track of the pointer.
+
+<eucode>
+-- 
+-- get a dude's age property 
+-- 
+public function get_age( Dude ptr ) -- Not any old structure will do.  We'll make sure it's a dude!
+    return eumem:ram_space[ptr][DUDE_AGE] 
+end function 
+ 
+-- 
+-- set a dude's age property 
+-- 
+public procedure set_age( Dude ptr, atom age ) 
+    eumem:ram_space[ptr][DUDE_AGE] = age 
+end procedure 
+ 
+ 
+</eucode>
+
+Let's talk a little bit more about this example before I give you the whole thing to play with.  These are called accessor methods.  For this style of programming you'll typically have accessors methods for object properties.  These are also sometimes called getters and setters.  Using accessors, we can do all kinds of things to the data before we store or retrieve the data from the heap.  Some of the most common tasks include validation and formatting.
+
+== Full Code
+
+<eucode>
+-- Dude.e
+
+namespace dude 
+include std/eumem.e 
+
+-- 
+-- this is our dude structure (let's hide the implementation details)
+-- 
+enum 
+    __TYPE__, -- must be first value in enum
+    DUDE_AGE, 
+    DUDE_FNAME, 
+    DUDE_LNAME, 
+    __MYSIZE__ -- must be last value in enum
+
+--
+-- ID pattern is SOME_NAME_THAT_MAKES_SENSE DOLLAR_SYMBOL SOME_RANDOM_CHARS
+--    
+constant
+    DUDE_ID = "DUDE$TUJYRHGDESFWA#@$%^"
+
+constant NULL = 0 
+    
+-- Awesome Euphoria Feature!  Let's define what a dude looks like.
+public type Dude (atom ptr)
+    if eumem:valid(ptr, __MYSIZE__) then
+        if equal(eumem:ram_space[ptr][__TYPE__], DUDE_ID) then
+            return 1
+        end if
+    end if
+    return 0
+end type
+
+-- Magic here is we can add remove "Properties" from our data struct
+-- Without needing remember to update this.
+public constant 
+    SIZEOF_DUDE = __MYSIZE__ 
+    
+-- 
+-- create a new dude object 
+-- 
+public function new( sequence fname, sequence lname, atom age ) 
+     
+    return eumem:malloc( {DUDE_ID, age, fname, lname, SIZEOF_DUDE} ) 
+
+end function 
+
+-- 
+-- Let's introduce our self. 
+-- 
+public function introduce( Dude ptr ) -- Not any old structure will do.  We'll make sure it's a dude!
+    return sprintf("Hi I'm %s %s and I love learning Euphoria!", {get_fname(ptr), get_lname(ptr)})
+end function 
+ 
+-- 
+-- get a dude's age property 
+-- 
+public function get_age( Dude ptr ) -- Not any old structure will do.  We'll make sure it's a dude!
+    return eumem:ram_space[ptr][DUDE_AGE] 
+end function 
+ 
+-- 
+-- set a dude's age property 
+-- 
+public procedure set_age( Dude ptr, atom age ) 
+    eumem:ram_space[ptr][DUDE_AGE] = age 
+end procedure 
+ 
+-- 
+-- get a dude's fname property 
+-- 
+public function get_fname( Dude ptr ) 
+    return eumem:ram_space[ptr][DUDE_FNAME] 
+end function 
+ 
+-- 
+-- set a dude's fname property 
+-- 
+public procedure set_fname( Dude ptr, sequence fname ) 
+    eumem:ram_space[ptr][DUDE_FNAME] = fname 
+end procedure 
+ 
+-- 
+-- get a dude's lname property 
+-- 
+public function get_lname( Dude ptr ) 
+    return eumem:ram_space[ptr][DUDE_LNAME] 
+end function 
+ 
+-- 
+-- set a dude's lname property 
+-- 
+public procedure set_lname( Dude ptr, sequence lname ) 
+    eumem:ram_space[ptr][DUDE_LNAME] = lname 
+end procedure 
+</eucode>
+
+<eucode>
+#!/usr/bin/env eui
+-- run_dude_run.ex
+-- Example program using the Dude Class
+
+
+include Dude.e
+include std/console.e 
+ 
+function main() 
+    Dude my_dude = dude:new( "John", "Smith", 32 ) 
+    Dude cool_dude = dude:new("Ronald", "Weidner", 745) -- Maybe we should add some validation?
+    
+    dude:set_age( my_dude, 22)  -- Change the dude's age.
+    
+    display( "[] [] is []", { 
+        dude:get_fname( my_dude ), 
+        dude:get_lname( my_dude ), 
+        dude:get_age( my_dude ) 
+    } ) 
+    
+    display( dude:introduce(cool_dude) )
+    
+    maybe_any_key() 
+    return 0
+end function 
+ 
+main()
+</eucode>
+

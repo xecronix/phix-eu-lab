@@ -1,0 +1,104 @@
+= Compiling Open Euphoria on Linux
+To compile Euphoria you basically need Euphoria installed.  Euphoria is used to translate some Euphoria source files into C before compiling.  This is why you need Euphoria.
+
+== Getting Euphoria
+Assuming you don't have Euphoria you have at least 3 options.  
+
+# Find pre-translated source files.  Find translated code under the heading **Translated C Source Code Releases** on [[this page -> http://openeuphoria.org/wiki/view/DownloadEuphoria.wc]]
+# Use an installer to install Euphoria before attempting to build.  RPM and deb packages are available.  See [[this page -> http://openeuphoria.org/wiki/view/DownloadEuphoria.wc]] for more details.
+# Use a development version of Euphoria to do the translations.
+** Find the section header titled **Eubins Development Versions**. (also found on [[this page -> http://openeuphoria.org/wiki/view/DownloadEuphoria.wc]])
+** There is a link you can find there that will take you to some development versions of Euphoria.
+** Simply uncompress the appropriate version for your OS and architecture somewhere where you'll remember the file path.
+** For this tutorial, I'll assume that you uncompressed the archive in your home directory and renamed it **euphoria**.
+
+== Getting the Source
+At the moment, the Euphoria Dev Team favors Mercurial source code version control.  So the best way to get the latest code would be to get it from there.  On my Fedora 22 system that involved first installing a program called hg.  Also make sure your gcc compiler is installed.
+
+{{{
+sudo dnf install mercurial hg-git hgsvn hgview gcc
+}}}
+
+Or on Ubuntu:
+
+{{{
+sudo apt-get install mercurial hgsvn hgview build-essential
+}}}
+
+Once installed, I grabbed the source using the command line like this:
+
+{{{
+mkdir open_euphoria
+cd open_euphoria
+hg clone http://scm.openeuphoria.org/hg/euphoria
+}}}
+
+The above commands will result in a new directory called **euphoria/source**.  
+
+{{{
+cd euphoria/source
+}}}
+
+== Compile
+
+Ok... so how did you install Euphoria?  If you installed it using ether option 1 or option 2 above, you should be able to simply run ##configure##.
+
+{{{
+./configure
+}}}
+
+If you â€œinstalledâ€ Euphoria using a development version, you'll need to run configure like this.  Where this represents the full path to **bin** directory contained in your development version of Euphoria.
+
+{{{
+./configure --eubin ~/euphoria/bin
+}}}
+
+Now, you can simply ##make## and ##make install## Euphoria
+
+{{{
+make
+sudo make install
+}}}
+
+== Cleaning up
+If you installed a development version of Open Euphoria, you can safely remove it now.
+
+{{{
+rm -rf ~/euphoria
+}}}
+
+Get ready for the next compile. You don't want the build pointing at the Euphoria build you just deleted, right?
+
+{{{
+./configure
+}}}
+
+== Optional
+//(But really... you should do this)//
+
+**Install eudoc**
+{{{
+make get-eudoc
+cd eudoc
+./configure
+make
+sudo make install 
+cd ..
+}}}
+
+**Install creole**
+{{{
+make get-creole
+cd creole
+./configure
+make
+sudo make install
+cd ..
+}}}
+
+**Install the documentation**
+//(In case you lose Internet connectivity and you still want to code)//
+{{{
+make htmldoc
+sudo make install
+}}}
